@@ -1,5 +1,5 @@
 # number of worker nodes
-NUM_WORKERS = 1
+NUM_WORKERS = 2
 # number of extra disks per worker
 NUM_DISKS = 1
 # size of each disk in gigabytes
@@ -10,7 +10,7 @@ WORKER_IP_BASE = "192.168.73.2" # 200, 201, ...
 TOKEN = "yi6muo.4ytkfl3l6vl8zfpk"
 
 Vagrant.configure("2") do |config|
-  config.vm.box = "centos/7"
+  config.vm.box = "oraclelinux/8"
   config.vm.synced_folder ".", "/vagrant", disabled: true
 
   config.vm.provider :libvirt do |libvirt|

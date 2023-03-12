@@ -1,10 +1,14 @@
 #!/bin/bash
 set -e
 
+yum install -y tar
+
+source /etc/os-release
+
 cat << EOF > /etc/yum.repos.d/docker-ce.repo
 [docker-ce-stable]
 name=Docker CE Stable - x86_64
-baseurl=https://download.docker.com/linux/centos/7/x86_64/stable
+baseurl=https://download.docker.com/linux/centos/${VERSION}/x86_64/stable
 enabled=1
 gpgcheck=1
 gpgkey=https://download.docker.com/linux/centos/gpg
@@ -23,33 +27,28 @@ gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg \
 exclude=kube*
 EOF
 
-mkdir -p /etc/docker
-cat <<EOF > /etc/docker/daemon.json
-{
-  "exec-opts": ["native.cgroupdriver=systemd"],
-  "log-driver": "json-file",
-  "log-opts": {
-    "max-size": "100m"
-  },
-  "storage-driver": "overlay2",
-  "storage-opts": [
-    "overlay2.override_kernel_check=true"
-  ]
-}
-EOF
-
 cat << EOF > /etc/sysctl.d/kubernetes.conf
 net.bridge.bridge-nf-call-ip6tables = 1
-net.bridge.bridge-nf-call-iptables = 1
+net.bridge.bridge-nf-call-iptables  = 1
+net.ipv4.ip_forward                 = 1
 EOF
 
-yum install -y device-mapper-persistent-data lvm2 \
-    kubelet kubeadm kubectl docker-ce-18.06.2.ce \
+yum install -y device-mapper-persistent-data lvm2  \
     --disableexcludes=kubernetes,docker-ce-stable
 
+yum install -y containerd.io cri-tools
+
+mkdir -p /etc/containerd
+containerd config default > /etc/containerd/config.toml
+systemctl restart containerd
+crictl config --set runtime-endpoint=unix:///run/containerd/containerd.sock --set image-endpoint=unix:///run/containerd/containerd.sock
+
 systemctl daemon-reload
-systemctl restart docker
-systemctl enable docker.service
+systemctl restart containerd
+systemctl enable containerd.service
+
+yum install -y kubelet kubeadm kubectl --disableexcludes kubernetes
+systemctl enable kubelet
 systemctl enable --now kubelet
 
 setenforce 0
@@ -60,3 +59,13 @@ sysctl --system
 
 swapoff -a
 sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+
+
+#
+#
+# Install helpful containerd tools
+#
+# nerdctl
+curl -fsSLO https://github.com/containerd/nerdctl/releases/download/v1.2.1/nerdctl-1.2.1-linux-amd64.tar.gz
+tar zxvf nerdctl-1.2.1-linux-amd64.tar.gz -C /usr/local/bin
+
